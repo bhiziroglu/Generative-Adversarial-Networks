@@ -1,2 +1,2 @@
 # Generative-Adversarial-Networks
-Implementation of the paper "Generative Adversarial Networks, Ian Goodfellow, arXiv:1406.2661"
+Implementation of the paper "Generative Adversarial Networks, arXiv:1406.2661"
