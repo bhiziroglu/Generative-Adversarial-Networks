@@ -1,30 +1,24 @@
-for p in ("Knet","ArgParse","Compat","GZip")
+for p in ("Knet","ArgParse","Compat","GZip","Images")
     Pkg.installed(p) == nothing && Pkg.add(p)
 end
-
-#Package MLDatasets for Julia
-#Makes it easier to access popular datasets
-#Pkg.clone("https://github.com/JuliaML/MLDatasets.jl.git")
 
 using Knet
 using ArgParse
 using Compat, GZip
-#using Plots
-using MLDatasets
+using Images
 
 function main(args="")
 	
-	batchsize = 1
-	#getting the data using MLDataset
-	xtrn , ytrn = MNIST.traindata()
+	batchsize = 100
+	xtrn = traindata();
 	
 	G_net= initialize_generator_net(batchsize)
 	D_net = initialize_discriminator_net(batchsize)
-#	print("SIZE OF D_net ==> ",size(D_net),"\n")
 	
-	x_mb = minibatch(xtrn[:,:,1:20000]) #batchsize = 100 [default]
+	x_mb = minibatch(xtrn) #batchsize = 100 [default]
 	
-	
+	#Generate an image before any training
+	save("before_training.png",reshape(generator(G_net),(28,28)))
 	
 	
 	a = D_loss(D_net,xtrn,G_net)
@@ -32,28 +26,21 @@ function main(args="")
 	b = G_loss(G_net,xtrn,D_net)
 	print("G loss prior: ",b,"\n")
 	
-	
-	first_img = generator(G_net)
-	print("noise image\n")
-	print(first_img)
-	
-	#c = lossgradient_D(D_net,xtrn,G_net)
-	#print("loss grad size : ",size(c[2]),"\n")
-	#print("D_net : ",size(D_net[2]),"\n")
-	
+	ep=1
 	@time for i=1:length(x_mb)
 		G_net = trainG(x_mb[i],D_net,G_net)
 		D_net = trainD(x_mb[i],D_net,G_net)
+		print("epoch: ",ep," loss[generative]: ",G_loss(G_net,xtrn,D_net)," loss[discriminative]: ",D_loss(D_net,xtrn,G_net)," \n");
+		ep += 1
 	end
 	
 	a = D_loss(D_net,xtrn,G_net)
-	print("D loss post: ",a,"\n")
+	print("D loss after training: ",a,"\n")
 	b = G_loss(G_net,xtrn,D_net)
-	print("G loss post: ",b,"\n")
-	
-	last_img = generator(G_net)
-	print("last image\n")
-	print(last_img)
+	print("G loss after training: ",b,"\n")
+
+	#Generate an image after training
+	save("after_training.png",reshape(generator(G_net),(28,28)))
 	
 	
 	
@@ -88,10 +75,9 @@ end
 function trainD(xtrn,D_net,G_net,lr=.1 , epochs=5)
 	for epoch=1:epochs
 		g = lossgradient_D(D_net,xtrn,G_net)
-#		print("current g=>",g,"\n")
-#		print("epoch(",i,") loss: ",D_loss(xtrn[:,:,128],D_net,G_net)," grad: ",g,"\n")
 		for i in 1:length(D_net)
-			axpy!(-lr,g[i],D_net[i])
+			D_net[i] -= lr * g[i]
+			#axpy!(-lr,g[i],D_net[i])
 		end
 	end
 	return D_net
@@ -100,7 +86,7 @@ end
 function G_loss(G_net,x,D_net)
 	G_sample = generator(G_net)
 	D_fake = discriminator(G_sample,D_net)
-	-mean(log(D_fake))
+	-mean(log(1 - D_fake))
 end
 
 lossgradient_G = grad(G_loss)
@@ -136,6 +122,7 @@ end
 #return a 784 dimensional MNIST image
 function generator(G_net)
 	#100 can be changed here
+	#relu can be used?
 	Z = xavier(1,100)
 	G_h1 = (Z * G_net[1] .+ G_net[2]);
 	G_logp = G_h1 * G_net[3] .+ G_net[4] ;
@@ -189,6 +176,22 @@ function initialize_discriminator_net(bs)
 	push!(D,D4)
 	#map(a->convert(KnetArray{Float32},a), G)
 	return D #returns the generator net
+end
+
+function traindata()
+	info("Loading MNIST...")
+    x = gzload("train-images-idx3-ubyte.gz")[17:end];
+    x = reshape(x/255, 28, 28, 60000);
+    return x
+end
+
+
+function gzload(file; path=Knet.dir("data",file), url="http://yann.lecun.com/exdb/mnist/$file")
+    isfile(path) || download(url, path)
+    f = gzopen(path)
+    a = @compat read(f)
+    close(f)
+    return(a)
 end
 
 
