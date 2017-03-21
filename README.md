@@ -12,6 +12,9 @@ Output (after training)
 ![Alt text](/outputs/sampleoutputtrained.png?raw=true "Sample Output")    
 [28x28 Image]    
 
+```
+SAMPLE RUN Tue Mar 21 22:29:30 MSK 2017   
+
 INFO: Knet using GPU 0  
 INFO: Loading MNIST...  
 D loss prior: 1.3783718453599483  
@@ -27,6 +30,7 @@ epoch: 10 loss[generative]: 0.0033129904546181374 loss[discriminative]: 0.226863
 .  
 .  
 epoch: 100 loss[generative]: 0.00019555105638620874 loss[discriminative]: 0.021619116341306782  
+```
 
   
  ## Notes
