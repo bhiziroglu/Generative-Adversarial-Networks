@@ -8,44 +8,41 @@ using Compat, GZip
 using Images
 
 function main(args="")
-	
+
 	batchsize = 100
-	xtrn = traindata();
-	
+	(xtrn,xtst,ytrn,ytst) = loaddata();
+
 	G_net= initialize_generator_net(batchsize)
 	D_net = initialize_discriminator_net(batchsize)
-	
-	x_mb = minibatch(xtrn) #batchsize = 100 [default]
-	
+
+  trn = minibatch(xtrn, ytrn)
+  tst = minibatch(xtst, ytst)
+
 	#Generate an image before any training
-	save("before_training.png",reshape(generator(G_net),(28,28)))
-	
-	
-	a = D_loss(D_net,xtrn,G_net)
-	print("D loss prior: ",a,"\n")
-	b = G_loss(G_net,xtrn,D_net)
-	print("G loss prior: ",b,"\n")
-	
+	#save("before_training.png",reshape(generator(G_net),(28,28)))
+  x_mb = trn;
+
 	ep=1
 	@time for i=1:length(x_mb)
 		G_net = trainG(x_mb[i],D_net,G_net)
 		D_net = trainD(x_mb[i],D_net,G_net)
-		print("epoch: ",ep," loss[generative]: ",G_loss(G_net,xtrn,D_net)," loss[discriminative]: ",D_loss(D_net,xtrn,G_net)," \n");
+	#	print("epoch: ",ep," loss[generative]: ",G_loss(G_net,xtrn,D_net)," loss[discriminative]: ",D_loss(D_net,xtrn,G_net)," \n");
 		ep += 1
 	end
-	
+
 	a = D_loss(D_net,xtrn,G_net)
 	print("D loss after training: ",a,"\n")
 	b = G_loss(G_net,xtrn,D_net)
 	print("G loss after training: ",b,"\n")
 
 	#Generate an image after training
-	save("after_training.png",reshape(generator(G_net),(28,28)))
-	
-	
-	
+	#save("after_training.png",reshape(generator(G_net),(28,28)))
+
+
+
 end
 
+#=
 function minibatch(X,bs=100)
 	#takes raw input (X) and gold labels (Y)
 	#returns list of minibatches (x, y)
@@ -58,6 +55,21 @@ function minibatch(X,bs=100)
 	#end of step 1
 	return data
 end
+=#
+
+function minibatch(x, y, batchsize=100; atype=Array{Float32}, xrows=784, yrows=10, xscale=255)
+    xbatch(a)=convert(atype, reshape(a./xscale, xrows, div(length(a),xrows)))
+    ybatch(a)=(a[a.==0]=10; convert(atype, sparse(convert(Vector{Int},a),1:length(a),one(eltype(a)),yrows,length(a))))
+    xcols = div(length(x),xrows)
+    xcols == length(y) || throw(DimensionMismatch())
+    data = Any[]
+    for i=1:batchsize:xcols-batchsize+1
+        j=i+batchsize-1
+        push!(data, (xbatch(x[1+(i-1)*xrows:j*xrows]), ybatch(y[i:j])))
+    end
+    return data
+end
+
 
 
 function trainG(xtrn,D_net,G_net,lr=-.2,epochs=1)
@@ -69,7 +81,6 @@ function trainG(xtrn,D_net,G_net,lr=-.2,epochs=1)
 	end
 	return G_net
 end
-
 
 
 function trainD(xtrn,D_net,G_net,lr=.1 , epochs=5)
@@ -104,7 +115,7 @@ end
 
 lossgradient_D = grad(D_loss)
 
-#returns a probability which tells whether the input image	
+#returns a probability which tells whether the input image
 #is from the real dataset or a generated one
 function discriminator(x,D_net)
 	#reshape the input image and take its transpose
@@ -128,10 +139,10 @@ function generator(G_net)
 	G_logp = G_h1 * G_net[3] .+ G_net[4] ;
 	G_prob = sigmoid(G_logp)
 	#G_prob = reshape(G_prob,(size(G_prob,2),28,28))
-	return G_prob	
+	return G_prob
 end
 
-function initialize_generator_net(bs)
+function initialize_generator_net()
 	G = Any[]
 	#100 here can be changed
 	G1 = xavier(100,bs) #G_W1
@@ -178,12 +189,27 @@ function initialize_discriminator_net(bs)
 	return D #returns the generator net
 end
 
-function traindata()
-	info("Loading MNIST...")
-    x = gzload("train-images-idx3-ubyte.gz")[17:end];
-    x = reshape(x/255, 28, 28, 60000);
-    return x
+
+function sample_noise(bs,dim;atype=Array{Float32})
+  return convert(atype,randn(dimension,batchsize))
 end
+
+#function traindata()
+#	info("Loading MNIST...")
+#    x = gzload("train-images-idx3-ubyte.gz")[17:end];
+#    x = reshape(x/255, 28, 28, 60000);
+#    return x
+#end
+
+
+function loaddata()
+    info("Loading MNIST...")
+    gzload("train-images-idx3-ubyte.gz")[17:end],
+    gzload("t10k-images-idx3-ubyte.gz")[17:end],
+    gzload("train-labels-idx1-ubyte.gz")[9:end],
+    gzload("t10k-labels-idx1-ubyte.gz")[9:end]
+end
+
 
 
 function gzload(file; path=Knet.dir("data",file), url="http://yann.lecun.com/exdb/mnist/$file")
@@ -201,5 +227,3 @@ function sigmoid(z)
 end
 
 main()
-
-
