@@ -32,12 +32,14 @@ epoch: 10 loss[generative]: 0.0033129904546181374 loss[discriminative]: 0.226863
 epoch: 100 loss[generative]: 0.00019555105638620874 loss[discriminative]: 0.021619116341306782  
 ```
 
+## What Changed?
+- Created baseline for the two other datasets: CIFAR-10 and Labeled Faces In The Wild.   
+- Removed sigmoid() function explicitly created since its already present in Knet.   
+- Used xavier() for weight initialization and randn() for sampling noise Z.
   
- ## Notes
- 
- Although the model is minimizing the loss, the output image is not a hand-written digit image.  
- One possible cause is noted inside the loss function in the code file.  
- The main purpose of this version of the code is to set up the baseline for the GAN.  
- Therefore, the errors will be removed in the up coming versions.
- 
+ ## TODO
+ - Change loss functions since they do not make the model create acceptable outputs.   
+ - The loss function is exactly the same as stated in the paper but I will try to concatenate the loss probabilities of real and fake data together. Otherwise, the probabilities are seperated from eachother which makes the discriminator act as two different models whereas it is a single model trying to figure out whether a presented data is fake or real.   
+ - Change the variable names so the implementation looks better and easier to understand.   
+ - Get rid of the unnecessary comments in the master branch.
  
