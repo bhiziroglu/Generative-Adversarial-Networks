@@ -9,37 +9,36 @@ Output (before training)
 [28x28 Image]
 
 Output (after training)   
-![Alt text](/outputs/sampleoutputtrained.png?raw=true "Sample Output")    
+![Alt text](/outputs/sampleoutput140417.png?raw=true "Sample Output")    
 [28x28 Image]    
 
 ```
-SAMPLE RUN Tue Mar 21 22:29:30 MSK 2017   
+SAMPLE RUN Thu Apr 14 14:56:21 MSK 2017 on AWS GPU g2.2xlarge
 
-INFO: Knet using GPU 0  
-INFO: Loading MNIST...  
-D loss prior: 1.3783718453599483  
-G loss prior: 0.6758804389903623  
-  
-epoch: 1 loss[generative]: 0.22450022063780317 loss[discriminative]: 0.9754884350477281  
-epoch: 2 loss[generative]: 0.04377112889020878 loss[discriminative]: 0.6507480850680244  
-epoch: 3 loss[generative]: 0.023792791168789174 loss[discriminative]: 0.527970792972902   
-epoch: 4 loss[generative]: 0.012100225170517287 loss[discriminative]: 0.45077804478487987  
-.  
-.  
-epoch: 10 loss[generative]: 0.0033129904546181374 loss[discriminative]: 0.22686330041370548    
-.  
-.  
-epoch: 100 loss[generative]: 0.00019555105638620874 loss[discriminative]: 0.021619116341306782  
+[ec2-user@ip-172-31-4-2 ~]$ julia gan_mnist.jl
+INFO: Knet using GPU 0
+INFO: GAN Started...
+INFO: Loading MNIST...
+Initializing Discriminator weights.
+Initializing Generator weights.
+
+epoch: 1 loss[D]: 2867.16 loss[G]: 99.8857
+epoch: 2 loss[D]: 2790.19 loss[G]: 26.981
+epoch: 3 loss[D]: 2774.2 loss[G]: 11.0762
+epoch: 4 loss[D]: 2769.35 loss[G]: 6.25019
+epoch: 5 loss[D]: 2767.25 loss[G]: 4.14593
+epoch: 6 loss[D]: 2766.12 loss[G]: 3.01691
+epoch: 7 loss[D]: 2765.44 loss[G]: 2.33704
+epoch: 8 loss[D]: 2764.99 loss[G]: 1.88515
+epoch: 9 loss[D]: 2764.67 loss[G]: 1.5665
+epoch: 10 loss[D]: 2764.43 loss[G]: 1.33127
 ```
 
 ## What Changed?
-- Created baseline for the two other datasets: CIFAR-10 and Labeled Faces In The Wild.   
-- Removed sigmoid() function explicitly created since its already present in Knet.   
-- Used xavier() for weight initialization and randn() for sampling noise Z.
-  
+- Activation functions for the last layer of generative model has been changed from tanh() to sigm()
+- Instead of update!() function, normal matrix multiplication with learning rate is used in training
+
  ## TODO
- - Change loss functions since they do not make the model create acceptable outputs.   
- - The loss function is exactly the same as stated in the paper but I will try to concatenate the loss probabilities of real and fake data together. Otherwise, the probabilities are seperated from eachother which makes the discriminator act as two different models whereas it is a single model trying to figure out whether a presented data is fake or real.   
- - Change the variable names so the implementation looks better and easier to understand.   
- - Get rid of the unnecessary comments in the master branch.
- 
+ - The discriminative loss is not descending, fix that problem
+ - The generative loss should follow discriminative loss according to the paper. Find out how one is decreasing and the other one is stable.
+ - Apply the model to other two datasets.
