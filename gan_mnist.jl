@@ -7,58 +7,168 @@ using ArgParse
 using Compat, GZip
 using Images
 
-function main(args="")
 
-	batchsize = 100
-	(xtrn,xtst,ytrn,ytst) = loaddata();
+function main(args)
+    s = ArgParseSettings()
+    s.description = "Implementation of the paper Generative Adversarial Networks [https://arxiv.org/abs/1406.2661] \nUsing Knet Library in Julia";
+    s.exc_handler=ArgParse.debug_handler
 
-	G_net= initialize_generator_net(batchsize)
-	D_net = initialize_discriminator_net(batchsize)
+    @add_arg_table s begin
+      ("--epochs"; arg_type=Int; default=10)
+      ("--batchsize"; arg_type=Int; default=100)
+      ("--atype"; default=(gpu()>=0 ? "KnetArray{Float32}" : "Array{Float32}"); help="array type: Array for cpu, KnetArray for gpu")
+      ("--lr"; arg_type=Float32; default=Float32(0.01))
+      ("--gencnt"; arg_type=Int; default=2; help="Number of images that generator function creates.")
+      ("--print"; default=true ; help="Set false to turn off creating output images")
+    end
 
-  trn = minibatch(xtrn, ytrn)
-  tst = minibatch(xtst, ytst)
+  isa(args, AbstractString) && (args=split(args))
+  o = parse_args(args, s; as_symbols=true)
+  atype = eval(parse(o[:atype]))
+  info("GAN Started...")
 
-	#Generate an image before any training
-	#save("before_training.png",reshape(generator(G_net),(28,28)))
-  x_mb = trn;
+  (xtrn,xtst,ytrn,ytst)=loaddata()
+  trn = minibatch(xtrn, ytrn, o[:batchsize];atype=atype)
+  tst = minibatch(xtst, ytst, o[:batchsize];atype=atype)
 
-	ep=1
-	@time for i=1:length(x_mb)
-		G_net = trainG(x_mb[i],D_net,G_net)
-		D_net = trainD(x_mb[i],D_net,G_net)
-	#	print("epoch: ",ep," loss[generative]: ",G_loss(G_net,xtrn,D_net)," loss[discriminative]: ",D_loss(D_net,xtrn,G_net)," \n");
-		ep += 1
-	end
+  sizeX = size(trn[1][1],1)
+  sizeD = 128 #user dependent
+  sizeG = 128 #user dependent
+  sizeZ = 100
 
-	a = D_loss(D_net,xtrn,G_net)
-	print("D loss after training: ",a,"\n")
-	b = G_loss(G_net,xtrn,D_net)
-	print("G loss after training: ",b,"\n")
-
-	#Generate an image after training
-	#save("after_training.png",reshape(generator(G_net),(28,28)))
+  Dnet = initalize_weights_D(sizeX,sizeD,atype);
+  Gnet = initalize_weights_G(sizeX,sizeZ,sizeG,atype);
 
 
+  Z = samplenoise(size(trn[1][1])[2],sizeZ,atype,winit=0.01)
+
+  #ADAM
+  Dnetopt = map(x->Adam(;lr=o[:lr]), Dnet)
+  Gnetopt = map(x->Adam(;lr=o[:lr]), Gnet)
+
+  #generate a sample
+
+for epoch=1:o[:epochs]
+  shuffle!(trn)
+  lossD = 0
+  lossG = 0
+  for i = 1:length(trn)
+    x = convert(atype,trn[i][1])
+    lossD += D_loss(Dnet,sizeZ,x,o,Gnet,atype)
+    lossG += G_loss(Gnet,Dnet,sizeZ,atype,o)
+    trainD(Dnet,Gnet,x,sizeZ,Dnetopt,o,atype)
+    trainG(Gnet,Dnet,sizeZ,Gnetopt,o,atype)
+  end
+  @printf("epoch: %d loss[D]: %g loss[G]: %g\n",epoch,lossD,lossG)
 
 end
 
-#=
-function minibatch(X,bs=100)
-	#takes raw input (X) and gold labels (Y)
-	#returns list of minibatches (x, y)
-	data = Any[]
-	#start of step 1
-	for i=1:bs:size(X, 3)
-		bl = i + bs - 1 <= size(X, 3) ? i + bs - 1 : size(X, 3)
-		push!(data, (X[:,:, i:bl]))
-	end
-	#end of step 1
-	return data
 end
-=#
 
-function minibatch(x, y, batchsize=100; atype=Array{Float32}, xrows=784, yrows=10, xscale=255)
-    xbatch(a)=convert(atype, reshape(a./xscale, xrows, div(length(a),xrows)))
+
+function trainG(Gnet,Dnet,sizeZ,Gnetopt,o,atype)
+  g = G_lossgradient(Gnet,Dnet,sizeZ,atype,o)
+  	for i in 1:length(Gnet)
+			Gnet[i] -= o[:lr] * g[i]
+			#axpy!(-lr,g[i],D_net[i])
+		end
+  #for i=1:length(Gnet)
+  #  update!(Gnet[i],g[i],Gnetopt[i])
+  #end
+end
+
+
+#train Discriminative net only once
+function trainD(Dnet,Gnet,x,sizeZ,Dnetopt,o,atype)
+  g = D_lossgradient(Dnet,sizeZ,x,o,Gnet,atype)
+  #for i=1:length(Dnet)
+  #  update!(Dnet[i],g[i],Dnetopt[i])
+  #end
+  for i in 1:length(Dnet)
+    Dnet[i] -= o[:lr] * g[i]
+    #axpy!(-lr,g[i],D_net[i])
+  end
+end
+
+function print_output(epoch,Gnet,sizeZ,atype,o)
+  gg = generator(Gnet,sizeZ,o[:batchsize],atype,o[:gencnt])
+  gg = (gg+1)/2;
+  gg = min(1,max(0,gg))
+  gg = convert(Array{Float64},gg)
+  gg = gg[:,1:1]
+  gg = reshape(gg,(28,28))
+  save(@sprintf("output%d.png",epoch),gg)
+
+end
+
+#discriminator loss
+function D_loss(Dnet,sizeZ,x,o,Gnet,atype)
+	G_sample = generator(Gnet,sizeZ,o[:batchsize],atype,o[:gencnt])
+	D_real  = log(discriminator(Dnet,x,atype))
+	D_fake = log(1-discriminator(Dnet,G_sample,atype))
+  #D_real = sum(D_real)/size(D_real,2)
+  #D_fake = sum(D_fake)/size(D_fake,2)
+  #=println("size of d real")
+  println(size(D_real))
+  println("size of d fake")
+  println(size(D_fake))
+  =#
+  -(sum(D_real)/size(D_real,2))-(sum(D_fake)/size(D_fake,2))
+end
+
+D_lossgradient = grad(D_loss)
+
+#generator loss
+function G_loss(Gnet,Dnet,sizeZ,atype,o)
+	G_sample = generator(Gnet,sizeZ,o[:batchsize],atype,o[:gencnt])
+	D_fake = discriminator(Dnet,G_sample,atype) #fake prob
+	-sum(log(1-D_fake))/size(D_fake,2) #min(log(1-D_fake))
+end
+
+G_lossgradient = grad(G_loss)
+
+#returns a probability which tells whether the input image
+#is from the real dataset or a generated one
+function discriminator(Dnet,x,atype)
+  #reshape has been removed
+  D_h1 = tanh(Dnet[1] * x .+ Dnet[2] );
+	D_logit = Dnet[3] * D_h1 .+ Dnet[4];
+	D_prob = D_logit
+  return sigm(D_prob)/size(x,2)
+end
+
+
+#it takes N-dimensional vector where N is an arbitrary number
+#N is the dimension of the Z vector
+#return a 784 dimensional MNIST image
+function generator(Gnet,sizeZ,bs,atype,gencnt)
+  Z = samplenoise(gencnt,sizeZ,atype) #gencnt is used defined
+  #  println("size Z in generator")
+  #  println(size(Z))
+  #desired number of output images
+  #100 can be changed here
+  #relu can be used?
+  #  println("size of G")
+  #  for i=1:length(Gnet)
+  #    println(size(Gnet[i]))
+  #  end
+  G_h1 = tanh(Gnet[1] * Z .+ Gnet[2]);
+	G_logp = Gnet[3] * G_h1 .+ Gnet[4] ;
+  #changed sigmoid to tanh
+  G_prob = tanh(G_logp)
+	#G_prob = reshape(G_prob,(size(G_prob,2),28,28))
+	return G_prob/size(Z,2)
+end
+
+
+function samplenoise(bs,sizeZ,atype;winit=0.1)
+  res = randn(sizeZ,bs)*winit
+  return convert(atype,res)
+end
+
+
+function minibatch(x, y, batchsize; atype=Array{Float32}, xrows=784, yrows=10, xscale=255/2)
+    xbatch(a)=convert(atype, reshape(a./xscale-1, xrows, div(length(a),xrows)))
     ybatch(a)=(a[a.==0]=10; convert(atype, sparse(convert(Vector{Int},a),1:length(a),one(eltype(a)),yrows,length(a))))
     xcols = div(length(x),xrows)
     xcols == length(y) || throw(DimensionMismatch())
@@ -72,158 +182,62 @@ end
 
 
 
-function trainG(xtrn,D_net,G_net,lr=-.2,epochs=1)
-	for epoch=1:epochs
-		g = lossgradient_G(G_net,xtrn,D_net)
-		for i in 1:length(G_net)
-			axpy!(-lr,g[i],G_net[i])
-		end
-	end
-	return G_net
+function initalize_weights_D(x,D,atype)
+  #= dims
+  d1: (100,784)
+  d2: (100,1)
+  d3: (1,100)
+  d4: (1,1)
+  =#
+  println("Initializing Discriminator weights.\n")
+  Dnet = Any[]
+  tmp=x
+  for (i,j) in enumerate([D..., 1])
+      push!(Dnet,xavier(j,tmp))
+      push!(Dnet,zeros(j,1))
+      tmp = j
+  end
+  #convert to Knet array or Array{Float32}
+  return map(x->convert(atype, x), Dnet)
 end
 
 
-function trainD(xtrn,D_net,G_net,lr=.1 , epochs=5)
-	for epoch=1:epochs
-		g = lossgradient_D(D_net,xtrn,G_net)
-		for i in 1:length(D_net)
-			D_net[i] -= lr * g[i]
-			#axpy!(-lr,g[i],D_net[i])
-		end
-	end
-	return D_net
-end
+#will generate Gdim amount of images
+function initalize_weights_G(x,z,G,atype)
+  println("Initializing Generator weights.\n")
+  #= dims
+  g1: (100,784)
+  g2: (100,100)
+  g3: (1,100)
+  g4: (1,1)
+  =#
 
-function G_loss(G_net,x,D_net)
-	G_sample = generator(G_net)
-	D_fake = discriminator(G_sample,D_net)
-	-mean(log(1 - D_fake))
-end
-
-lossgradient_G = grad(G_loss)
-
-function D_loss(D_net,x,G_net)
-	G_sample = generator(G_net)
-	D_real  = discriminator(x,D_net)
-	D_fake = discriminator(G_sample,D_net)
-	#there is a problem here
-	#fake image is just a single image whereas the real image is a
-	#batch of images
-	#TODO: solve this problem
-	-mean(log(D_real) .+ log(1 - D_fake))
-end
-
-lossgradient_D = grad(D_loss)
-
-#returns a probability which tells whether the input image
-#is from the real dataset or a generated one
-function discriminator(x,D_net)
-	#reshape the input image and take its transpose
-	#so that it can be multiplied with the first layer of the Dnet
-	x = reshape(x,(784,size(x,3)))
-	x = x' #transpose
-	#now x is in the form (bs,784)
-	D_h1 = max(0, (x * D_net[1] .+ D_net[2] ) );
-	D_logit = D_h1 * D_net[3] .+ D_net[4];
-	D_prob = sigmoid(D_logit)
-	return D_prob
-end
-
-#it takes N-dimensional vector where N is an arbitrary number
-#return a 784 dimensional MNIST image
-function generator(G_net)
-	#100 can be changed here
-	#relu can be used?
-	Z = xavier(1,100)
-	G_h1 = (Z * G_net[1] .+ G_net[2]);
-	G_logp = G_h1 * G_net[3] .+ G_net[4] ;
-	G_prob = sigmoid(G_logp)
-	#G_prob = reshape(G_prob,(size(G_prob,2),28,28))
-	return G_prob
-end
-
-function initialize_generator_net()
-	G = Any[]
-	#100 here can be changed
-	G1 = xavier(100,bs) #G_W1
-	G2 = zeros(1,bs) #G_B1
- 	G3 = xavier(bs,784) #G_W2
-	G4 = zeros(1,784) #G_B2
-	push!(G,G1)
-	push!(G,G2)
-	push!(G,G3)
-	push!(G,G4)
-	#map(a->convert(KnetArray{Float32},a), D)
-	return G
-end
-
-function xavier(a...)
-    w = rand(a...)
-     # The old implementation was not right for fully connected layers:
-     # (fanin = length(y) / (size(y)[end]); scale = sqrt(3 / fanin); axpb!(rand!(y); a=2*scale, b=-scale)) :
-    if ndims(w) < 2
-        error("ndims=$(ndims(w)) in xavier")
-    elseif ndims(w) == 2
-        fanout = size(w,1)
-        fanin = size(w,2)
-    else
-        fanout = size(w, ndims(w)) # Caffe disagrees: http://caffe.berkeleyvision.org/doxygen/classcaffe_1_1XavierFiller.html#details
-        fanin = div(length(w), fanout)
-    end
-    # See: http://jmlr.org/proceedings/papers/v9/glorot10a/glorot10a.pdf
-    s = sqrt(2 / (fanin + fanout))
-    w = 2s*w-s
-end
-
-function initialize_discriminator_net(bs)
-	D = Any[]
-	D1 = xavier(784,bs) #D_W1
-	D2 = zeros(1,bs) #D_B1
-	D3 = xavier(bs,1) #D_W2
-	D4 = zeros(1,1) #D_B2
-	push!(D,D1)
-	push!(D,D2)
-	push!(D,D3)
-	push!(D,D4)
-	#map(a->convert(KnetArray{Float32},a), G)
-	return D #returns the generator net
+  Gnet = Any[]
+  tmp=z
+  for (i,j) in enumerate([G..., x])
+      push!(Gnet,xavier(j,tmp))
+      push!(Gnet,zeros(j,1))
+      tmp = j
+  end
+  return map(x->convert(atype, x), Gnet)
 end
 
 
-function sample_noise(bs,dim;atype=Array{Float32})
-  return convert(atype,randn(dimension,batchsize))
-end
+  function loaddata()
+      info("Loading MNIST...")
+      gzload("train-images-idx3-ubyte.gz")[17:end],
+      gzload("t10k-images-idx3-ubyte.gz")[17:end],
+      gzload("train-labels-idx1-ubyte.gz")[9:end],
+      gzload("t10k-labels-idx1-ubyte.gz")[9:end]
+  end
 
-#function traindata()
-#	info("Loading MNIST...")
-#    x = gzload("train-images-idx3-ubyte.gz")[17:end];
-#    x = reshape(x/255, 28, 28, 60000);
-#    return x
-#end
-
-
-function loaddata()
-    info("Loading MNIST...")
-    gzload("train-images-idx3-ubyte.gz")[17:end],
-    gzload("t10k-images-idx3-ubyte.gz")[17:end],
-    gzload("train-labels-idx1-ubyte.gz")[9:end],
-    gzload("t10k-labels-idx1-ubyte.gz")[9:end]
-end
+  function gzload(file; path=Knet.dir("data",file), url="http://yann.lecun.com/exdb/mnist/$file")
+      isfile(path) || download(url, path)
+      f = gzopen(path)
+      a = read(f)
+      close(f)
+      return(a)
+  end
 
 
-
-function gzload(file; path=Knet.dir("data",file), url="http://yann.lecun.com/exdb/mnist/$file")
-    isfile(path) || download(url, path)
-    f = gzopen(path)
-    a = @compat read(f)
-    close(f)
-    return(a)
-end
-
-
-
-function sigmoid(z)
-  return 1.0 ./ (1.0 .+ exp(-z))
-end
-
-main()
+main(ARGS)
