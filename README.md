@@ -36,7 +36,7 @@ epoch: 10 loss[D]: 2764.43 loss[G]: 1.33127
 
 ## What Changed?
 - Activation functions for the last layer of generative model has been changed from tanh() to sigm()
-- Instead of update!() function, normal matrix multiplication with learning rate is used in training
+- Instead of normal matrix multiplication with learning rate, update!() function is used in training.
 
  ## TODO
  - The discriminative loss is not descending, fix that problem
