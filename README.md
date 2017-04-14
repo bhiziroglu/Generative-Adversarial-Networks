@@ -9,7 +9,7 @@ Output (before training)
 [28x28 Image]
 
 Output (after training)   
-![Alt text](/outputs/sampleoutput140417.png?raw=true "Sample Output")    
+![Alt text](/outputs/sampleoutput140417_2.png?raw=true "Sample Output")    
 [28x28 Image]    
 
 ```
