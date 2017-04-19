@@ -29,6 +29,7 @@
       info("GAN Started...")
 
       (xtrn,xtst,ytrn,ytst)=loaddata()
+
       trn = minibatch(xtrn, ytrn, o[:batchsize];atype=atype)
       tst = minibatch(xtst, ytst, o[:batchsize];atype=atype)
 
@@ -120,7 +121,6 @@
     #TODO - figure out how to print (without choosing randomly)
   function print_output(epoch,Gnet,sizeZ,atype,o)
       gg = generator(Gnet,sizeZ,o[:batchsize],atype,o[:gencnt])
-      gg = (gg+1)/2
       gg = min(1,max(0,gg))
       gg = convert(Array{Float64},gg)
       gg = gg[:,1:1]
