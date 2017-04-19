@@ -4,7 +4,6 @@
 
     using Knet
     using ArgParse
-    using Compat, GZip
     using Images
     using ImageMagick
 
@@ -39,6 +38,7 @@
       #3072 = 32 * 32 * 3
       #dimensions of the image * RGB
       #reshape RGB image to flatten
+    
       for i=1:length(trn)
         push!(x,reshape(trn[i],(3072,size(trn[i],4))))
       end
@@ -58,7 +58,7 @@
 
       Z = samplenoise(size(trn[1])[2],sizeZ,atype,winit=0.01)
 
-      #ADAM
+      #ADAM OPTIMIZER
       Dnetopt = map(x->Adam(), Dnet)
       Gnetopt = map(x->Adam(), Gnet)
 
@@ -67,11 +67,12 @@
       lossD = 0
       lossG = 0
       for i = 1:length(trn)
-        x = trn[i]
-        #train D
+      x = trn[i]   
       ohG = onehotG(x,atype);
       ohD = onehotD(x,sizeZ,atype);
-      for i=1:1
+      
+        #train D    
+        for i=1:1
           lossD += D_loss(Dnet,sizeZ,x,ohD,o,Gnet,atype)
           Dnet = trainD(Dnet,Gnet,x,sizeZ,ohD,Dnetopt,o,atype)
         end
@@ -136,7 +137,6 @@
   function print_output(epoch,Gnet,sizeZ,atype,o)
       gg = generator(Gnet,sizeZ,o[:batchsize],atype,o[:gencnt])
       gg = (gg+1)/2 #to fix 0-255 RGB size problem
-      #gg = min(1,max(0,gg))
       gg = convert(Array{Float64},gg)
       gg = gg[:,1:1]
       gg = reshape(gg,(1024,3))
