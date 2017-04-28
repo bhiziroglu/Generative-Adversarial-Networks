@@ -42,10 +42,11 @@ epoch: 50 loss[D]: 0.515786 loss[G]: 1.36772
 ## What Changed?
 - Labels are no longer used.
 - tanh() as an activation function is added to every layer of generator.
+- Input images are normalized between [-1,1]   
 - Log probabilities are added to the loss functions. 
 
 ## ☑ TODO
-- [X] Losses are good and agrees with the paper.
+- [X] Losses are logical and agree with the paper.
 - [X] Output images are selected manually from a wide range of images created. Decide how that selection should be made.
 - [ ] MLPs take very long time to produce good output for CIFAR-10 images. Try to use CNNs.   
 - [ ] Apply the model to Labeled Faces in the Wild dataset.
