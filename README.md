@@ -13,7 +13,11 @@ Using [Knet](https://github.com/denizyuret/Knet.jl "Knet Github Repo") Library f
 ## Usage
 
 ```
+$ julia gan_mnist.jl
+
 $ julia gan_faces.jl
+
+$ julia gan_cifar.jl
 ```
 ## Generated Samples
 ![Alt text](/outputs/mnist_sample1.png?raw=true "Sample Output")   
