@@ -35,7 +35,7 @@ $ julia gan_cifar.jl
 
 
  
-## TODO
+## 📝 TODO
 - Output images for CIFAR-10 dataset have low resolution. 
 - The model for Labeled Faces in The Wild dataset only works if the dataset is in the current directory. Will fix that.
 
