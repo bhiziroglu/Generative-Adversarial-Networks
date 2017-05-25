@@ -40,7 +40,7 @@ $ julia gan_cifar.jl
 - The model for Labeled Faces in The Wild dataset only works if the dataset is in the current directory. Will fix that.
 
 
-## Tutorial
+## 📚 Tutorial
 - A tutorial for Generate Adversarial Networks can be found [here](https://arxiv.org/abs/1701.00160 "arXiv").
 
 ## Related Works
