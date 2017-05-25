@@ -19,6 +19,9 @@ $ julia gan_faces.jl
 
 $ julia gan_cifar.jl
 ```
+
+NOTE: To run the code, [this line](https://github.com/denizyuret/Knet.jl/blob/master/src/conv.jl#L355) should be replaced with   `size(w,N-1)` on your current Knet installation.
+
 ## Generated Samples
 ![Alt text](/outputs/mnist_sample1.png?raw=true "Sample Output")   
 
