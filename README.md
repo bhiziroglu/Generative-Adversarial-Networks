@@ -40,8 +40,6 @@ NOTE: To run the code, [this line](https://github.com/denizyuret/Knet.jl/blob/ma
  
 ## 📝 TODO
 - Output images for CIFAR-10 dataset have low resolution. 
-- The model for Labeled Faces in The Wild dataset only works if the dataset is in the current directory. Will fix that.
-
 
 ## 📚 Tutorial
 - A tutorial for Generate Adversarial Networks can be found [here](https://arxiv.org/abs/1701.00160 "arXiv").
